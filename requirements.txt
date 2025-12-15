@@ -1,0 +1,5 @@
+streamlit
+garminconnect
+matplotlib
+gpxpy
+requests
