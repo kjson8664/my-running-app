@@ -1,15 +1,15 @@
 import streamlit as st
 import matplotlib
-matplotlib.use('Agg') # 서버 충돌 방지 필수 설정
+matplotlib.use('Agg') # 화면 충돌 방지
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from garminconnect import Garmin
 import datetime
 import gpxpy
 
-# ==========================================
-# 사이드바 설정
-# ==========================================
+# --------------------------------------------------------
+# 1. 사이드바 설정 (영어)
+# --------------------------------------------------------
 st.sidebar.header("Settings")
 MY_WEEKLY_GOAL = st.sidebar.number_input("Weekly Goal (km)", value=100.0, step=5.0)
 MY_THRESHOLD_PACE = st.sidebar.number_input("Threshold Pace (sec)", value=270, help="4:30 = 270")
@@ -20,13 +20,13 @@ z2_limit = st.sidebar.number_input("Zone 2 Limit", value=125)
 z3_limit = st.sidebar.number_input("Zone 3 Limit", value=148)
 z4_limit = st.sidebar.number_input("Zone 4 Limit", value=168)
 
-# ==========================================
-# 메인 로직
-# ==========================================
+# --------------------------------------------------------
+# 2. 메인 로직
+# --------------------------------------------------------
 st.title("🏃‍♂️ Garmin Dashboard")
 
 if st.button("🔄 Load Latest Activity", type="primary"):
-    # 1. 시크릿 확인
+    # 비밀번호 확인
     if "GARMIN_EMAIL" not in st.secrets:
         st.error("Please set Secrets (GARMIN_EMAIL, GARMIN_PASSWORD)!")
         st.stop()
@@ -38,11 +38,11 @@ if st.button("🔄 Load Latest Activity", type="primary"):
     status.info("Connecting to Garmin...")
 
     try:
-        # 2. 로그인
+        # 로그인
         client = Garmin(email, password)
         client.login()
         
-        # 3. 데이터 가져오기
+        # 활동 가져오기
         activities = client.get_activities(0, 1)
         if not activities:
             st.warning("No recent activities found.")
@@ -57,7 +57,7 @@ if st.button("🔄 Load Latest Activity", type="primary"):
         pace_sec = duration_sec / dist_km if dist_km > 0 else 0
         avg_hr = act.get('averageHR', 0)
         
-        # 주간 거리 (안전장치 포함)
+        # 주간 거리 계산 (안전 장치)
         try:
             act_date = datetime.datetime.strptime(act['startTimeLocal'].split(" ")[0], "%Y-%m-%d").date()
             start_week = act_date - datetime.timedelta(days=act_date.weekday())
@@ -79,7 +79,7 @@ if st.button("🔄 Load Latest Activity", type="primary"):
         plt.text(0.5, 0.96, act['activityName'], color='white', ha='center', fontsize=20, fontweight='bold')
         plt.text(0.5, 0.93, act['startTimeLocal'][:16], color='#888', ha='center', fontsize=14)
 
-        # 지도 (에러나면 스킵)
+        # 지도 (없으면 건너뜀)
         try:
             gpx_data = client.download_activity(act['activityId'], dl_fmt=client.ActivityDownloadFormat.GPX)
             gpx = gpxpy.parse(gpx_data)
@@ -98,7 +98,7 @@ if st.button("🔄 Load Latest Activity", type="primary"):
         except:
             plt.text(0.5, 0.75, "No Map Data", color='#555', ha='center')
 
-        # 게이지 함수
+        # 게이지 그리기 함수
         def draw_gauge(y, title, val, sub, ratio, col):
             plt.text(0.1, y+0.04, title, color='#aaa', fontsize=12)
             plt.text(0.9, y+0.04, val, color='white', ha='right', fontsize=22, fontweight='bold')
@@ -108,7 +108,7 @@ if st.button("🔄 Load Latest Activity", type="primary"):
             ax.add_patch(rect_val)
             plt.text(0.1, y-0.03, sub, color=col, fontsize=11, fontweight='bold')
 
-        # 1. 심박
+        # 1. 심박수
         hr_zone = "Z1"
         hr_col = '#00d2be'
         if avg_hr > z4_limit: hr_zone="Z5"; hr_col='#ff4d4d'
@@ -129,7 +129,7 @@ if st.button("🔄 Load Latest Activity", type="primary"):
         if w_ratio >= 1.0: w_txt = f"Goal Reached! (+{weekly_dist - MY_WEEKLY_GOAL:.1f}km)"
         draw_gauge(0.19, "Weekly Dist", f"{weekly_dist:.1f} km", w_txt, w_ratio, w_col)
 
-        # 하단 박스
+        # 하단 정보
         box_bg = plt.Rectangle((0.1, 0.03), 0.8, 0.08, facecolor='#222', edgecolor='#333', transform=ax.transData)
         ax.add_patch(box_bg)
         
