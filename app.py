@@ -1,5 +1,5 @@
 import streamlit as st
-# [중요] 서버에서 그림 그릴 때 충돌 방지
+# 서버에서 그림 그릴 때 충돌 방지
 import matplotlib
 matplotlib.use('Agg') 
 import matplotlib.pyplot as plt
@@ -19,7 +19,7 @@ plt.rcParams['axes.unicode_minus'] = False
 # ==========================================
 # 사이드바
 # ==========================================
-st.sidebar.header("⚙️ 설정")
+st.sidebar.header("설정")
 MY_WEEKLY_GOAL = st.sidebar.number_input("주간 목표 (km)", value=100.0, step=5.0)
 MY_THRESHOLD_PACE = st.sidebar.number_input("역치 페이스 (초)", value=270, help="4분30초=270")
 MY_MAX_HR = st.sidebar.number_input("최대 심박수", value=185)
@@ -32,9 +32,9 @@ z4_limit = st.sidebar.number_input("Zone 4 상한", value=168)
 # ==========================================
 # 메인 로직
 # ==========================================
-st.title("🏃‍♂️ Garmin Workout Analyst")
+st.title("Garmin Workout Analyst")
 
-if st.button("🔄 기록 가져오기", type="primary"):
+if st.button("기록 가져오기", type="primary"):
     if "GARMIN_EMAIL" not in st.secrets:
         st.error("비밀번호 설정(Secrets)을 확인해주세요!")
         st.stop()
@@ -43,7 +43,7 @@ if st.button("🔄 기록 가져오기", type="primary"):
     password = st.secrets["GARMIN_PASSWORD"]
 
     status = st.empty()
-    status.info("⏳ 가민 서버 접속 중...")
+    status.info("가민 서버 접속 중...")
 
     try:
         # 로그인
