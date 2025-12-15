@@ -3,4 +3,3 @@ garminconnect
 matplotlib
 gpxpy
 requests
-koreanize-matplotlib
