@@ -1,11 +1,39 @@
 import streamlit as st
 import matplotlib
-matplotlib.use('Agg') # 서버에서 그림 그리기 필수 설정
+matplotlib.use('Agg') # 서버 충돌 방지
 import matplotlib.pyplot as plt
-import koreanize_matplotlib # ★ 한글 폰트 자동 해결사
+import matplotlib.patches as patches
+import matplotlib.font_manager as fm
 from garminconnect import Garmin
 import datetime
+import os
 import gpxpy
+import requests
+
+# ==========================================
+# [핵심] 한글 폰트 강제 다운로드 & 설정
+# ==========================================
+@st.cache_resource
+def install_font():
+    # 1. 폰트 파일 다운로드 (나눔고딕)
+    url = "https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Bold.ttf"
+    font_name = "NanumGothic-Bold.ttf"
+    
+    if not os.path.exists(font_name):
+        response = requests.get(url)
+        with open(font_name, "wb") as f:
+            f.write(response.content)
+            
+    # 2. 폰트 매니저에 등록
+    fm.fontManager.addfont(font_name)
+    
+    # 3. 폰트 설정 적용
+    font_prop = fm.FontProperties(fname=font_name)
+    plt.rc('font', family=font_prop.get_name())
+    plt.rcParams['axes.unicode_minus'] = False # 마이너스 기호 깨짐 방지
+
+# 함수 실행
+install_font()
 
 # ==========================================
 # 사이드바 설정
@@ -23,10 +51,9 @@ z4_limit = st.sidebar.number_input("Zone 4 상한", value=168)
 # ==========================================
 # 메인 로직
 # ==========================================
-st.title("🏃‍♂️ Garmin Workout Dashboard")
+st.title("🏃‍♂️ Garmin Workout Analyst")
 
 if st.button("🔄 기록 가져오기", type="primary"):
-    # 1. 시크릿 확인
     if "GARMIN_EMAIL" not in st.secrets:
         st.error("비밀번호 설정(Secrets)이 없습니다!")
         st.stop()
@@ -38,11 +65,11 @@ if st.button("🔄 기록 가져오기", type="primary"):
     status.info("가민 서버 접속 중...")
 
     try:
-        # 2. 로그인
+        # 로그인
         client = Garmin(email, password)
         client.login()
         
-        # 3. 데이터 가져오기
+        # 데이터 가져오기
         activities = client.get_activities(0, 1)
         if not activities:
             st.warning("최근 활동이 없습니다.")
@@ -57,7 +84,7 @@ if st.button("🔄 기록 가져오기", type="primary"):
         pace_sec = duration_sec / dist_km if dist_km > 0 else 0
         avg_hr = act.get('averageHR', 0)
         
-        # 주간 거리 계산 (에러 방지용 안전 장치 추가)
+        # 주간 거리
         try:
             act_date = datetime.datetime.strptime(act['startTimeLocal'].split(" ")[0], "%Y-%m-%d").date()
             start_week = act_date - datetime.timedelta(days=act_date.weekday())
@@ -68,18 +95,18 @@ if st.button("🔄 기록 가져오기", type="primary"):
             weekly_dist = 0.0
 
         # -------------------------------------------
-        # 그림 그리기 (자동 한글 폰트 적용됨)
+        # 그림 그리기 (이모지 제외)
         # -------------------------------------------
         fig = plt.figure(figsize=(10, 14), facecolor='#121212')
         ax = plt.gca()
         ax.set_facecolor('#121212')
         ax.axis('off')
 
-        # 제목 (이모지 제거)
+        # 헤더
         plt.text(0.5, 0.96, act['activityName'], color='white', ha='center', fontsize=22, fontweight='bold')
         plt.text(0.5, 0.93, act['startTimeLocal'][:16], color='#888', ha='center', fontsize=14)
 
-        # 지도 (에러나면 건너뛰기)
+        # 지도
         try:
             gpx_data = client.download_activity(act['activityId'], dl_fmt=client.ActivityDownloadFormat.GPX)
             gpx = gpxpy.parse(gpx_data)
@@ -98,7 +125,7 @@ if st.button("🔄 기록 가져오기", type="primary"):
         except:
             plt.text(0.5, 0.75, "GPS Data Not Found", color='#555', ha='center')
 
-        # 게이지 그리기 함수
+        # 게이지 함수
         def draw_gauge(y, title, val, sub, ratio, col):
             plt.text(0.1, y+0.04, title, color='#aaa', fontsize=12)
             plt.text(0.9, y+0.04, val, color='white', ha='right', fontsize=22, fontweight='bold')
