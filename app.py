@@ -1,24 +1,25 @@
 import streamlit as st
-from garminconnect import Garmin
+# [중요] 서버에서 그림 그릴 때 충돌 방지
+import matplotlib
+matplotlib.use('Agg') 
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib import rc
+from garminconnect import Garmin
 import datetime
 import os
 import gpxpy
 
 # ==========================================
-# [수정됨] 폰트 설정 (더 안정적인 방식)
+# 폰트 설정 (이모지 사용 금지)
 # ==========================================
-# packages.txt를 통해 설치된 '나눔고딕'을 바로 사용합니다.
 rc('font', family='NanumGothic')
 plt.rcParams['axes.unicode_minus'] = False
 
 # ==========================================
-# 사이드바 설정
+# 사이드바
 # ==========================================
 st.sidebar.header("⚙️ 설정")
-
 MY_WEEKLY_GOAL = st.sidebar.number_input("주간 목표 (km)", value=100.0, step=5.0)
 MY_THRESHOLD_PACE = st.sidebar.number_input("역치 페이스 (초)", value=270, help="4분30초=270")
 MY_MAX_HR = st.sidebar.number_input("최대 심박수", value=185)
@@ -34,9 +35,8 @@ z4_limit = st.sidebar.number_input("Zone 4 상한", value=168)
 st.title("🏃‍♂️ Garmin Workout Analyst")
 
 if st.button("🔄 기록 가져오기", type="primary"):
-    # 1. 시크릿 확인
     if "GARMIN_EMAIL" not in st.secrets:
-        st.error("비밀번호 설정(Secrets)이 안 되어 있습니다!")
+        st.error("비밀번호 설정(Secrets)을 확인해주세요!")
         st.stop()
 
     email = st.secrets["GARMIN_EMAIL"]
@@ -46,11 +46,11 @@ if st.button("🔄 기록 가져오기", type="primary"):
     status.info("⏳ 가민 서버 접속 중...")
 
     try:
-        # 2. 로그인
+        # 로그인
         client = Garmin(email, password)
         client.login()
         
-        # 3. 데이터 가져오기
+        # 데이터 가져오기
         activities = client.get_activities(0, 1)
         if not activities:
             st.warning("최근 활동이 없습니다.")
@@ -59,21 +59,22 @@ if st.button("🔄 기록 가져오기", type="primary"):
         act = activities[0]
         status.success(f"활동 발견: {act['activityName']}")
         
-        # 데이터 계산
+        # 수치 계산
         dist_km = act['distance'] / 1000
         duration_sec = act['duration']
         pace_sec = duration_sec / dist_km if dist_km > 0 else 0
         avg_hr = act.get('averageHR', 0)
         
-        # 주간 거리
+        # 주간 거리 계산
         act_date = datetime.datetime.strptime(act['startTimeLocal'].split(" ")[0], "%Y-%m-%d").date()
         start_week = act_date - datetime.timedelta(days=act_date.weekday())
         end_week = start_week + datetime.timedelta(days=6)
-        
         recent = client.get_activities_by_date(start_week.isoformat(), end_week.isoformat(), "running")
         weekly_dist = sum([r['distance'] for r in recent]) / 1000
 
-        # 4. 그림 그리기
+        # -------------------------------------------
+        # 그림 그리기 (이모지 절대 금지!)
+        # -------------------------------------------
         fig = plt.figure(figsize=(10, 14), facecolor='#121212')
         ax = plt.gca()
         ax.set_facecolor('#121212')
@@ -100,7 +101,7 @@ if st.button("🔄 기록 가져오기", type="primary"):
                 map_ax.axis('off')
                 map_ax.set_aspect('equal', 'box')
         except:
-            plt.text(0.5, 0.75, "GPS 데이터 없음", color='#555', ha='center')
+            plt.text(0.5, 0.75, "NO GPS DATA", color='#555', ha='center')
 
         # 게이지 함수
         def draw_gauge(y, title, val, sub, ratio, col):
@@ -110,7 +111,7 @@ if st.button("🔄 기록 가져오기", type="primary"):
             ax.add_patch(patches.FancyBboxPatch((0.1, y), 0.8*min(max(ratio,0.02),1), 0.02, boxstyle="round,pad=0", fc=col, ec='none'))
             plt.text(0.1, y-0.03, sub, color=col, fontsize=11, fontweight='bold')
 
-        # 심박
+        # 1. 심박 (이모지 제거됨)
         hr_zone = "Z1"
         hr_col = '#00d2be'
         if avg_hr > z4_limit: hr_zone="Z5"; hr_col='#ff4d4d'
@@ -119,16 +120,16 @@ if st.button("🔄 기록 가져오기", type="primary"):
         elif avg_hr > 100: hr_zone="Z2"
         draw_gauge(0.45, "HEART RATE", f"{int(avg_hr)}", f"Zone: {hr_zone}", avg_hr/MY_MAX_HR, hr_col)
 
-        # 페이스
+        # 2. 페이스
         p_ratio = MY_THRESHOLD_PACE / pace_sec
         p_col = '#00d2be' if p_ratio <= 1.0 else '#ff4d4d'
         draw_gauge(0.32, "PACE", f"{int(pace_sec//60)}'{int(pace_sec%60):02d}''", f"Target {int(p_ratio*100)}%", p_ratio*0.8, p_col)
 
-        # 주간거리
+        # 3. 주간 거리
         w_ratio = weekly_dist / MY_WEEKLY_GOAL
         w_col = '#ce82ff' if w_ratio >= 1.0 else '#00d2be'
-        w_txt = f"남은 거리 {max(MY_WEEKLY_GOAL-weekly_dist, 0):.1f}km"
-        if w_ratio >= 1.0: w_txt = f"목표 달성! (+{weekly_dist - MY_WEEKLY_GOAL:.1f}km)"
+        w_txt = f"Remain {max(MY_WEEKLY_GOAL-weekly_dist, 0):.1f}km"
+        if w_ratio >= 1.0: w_txt = f"GOAL! (+{weekly_dist - MY_WEEKLY_GOAL:.1f}km)"
         draw_gauge(0.19, "WEEKLY DIST", f"{weekly_dist:.1f} km", w_txt, w_ratio, w_col)
 
         # 하단 박스
@@ -141,7 +142,7 @@ if st.button("🔄 기록 가져오기", type="primary"):
         plt.text(0.8, 0.04, f"{int(act.get('calories',0))}", color='white', ha='center', fontsize=16, fontweight='bold')
 
         st.pyplot(fig)
-        status.empty()
+        status.empty() # 로딩 문구 삭제
 
     except Exception as e:
-        st.error(f"오류 내용: {e}")
+        st.error(f"오류가 났어요: {e}")
